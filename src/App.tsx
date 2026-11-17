@@ -1,12 +1,19 @@
-import { useLanguage } from '@/i18n/LanguageContext';
+import { HashRouter, Route, Routes } from 'react-router-dom';
+import { AppShell } from '@/components/layout/AppShell';
+import { CalendarPage } from '@/pages/CalendarPage';
+import { PlaceholderPage } from '@/pages/PlaceholderPage';
 
-/** Phase 1 placeholder. The real shell, header toggle and routes arrive in Phase 2. */
+/** HashRouter: a static, local-first app needs no server-side route rewrites. */
 export function App() {
-  const { t } = useLanguage();
   return (
-    <main className="mx-auto max-w-xl p-8">
-      <h1 className="text-2xl font-semibold">{t('app_title')}</h1>
-      <p className="mt-2 text-neutral-600">{t('phase1_placeholder')}</p>
-    </main>
+    <HashRouter>
+      <Routes>
+        <Route element={<AppShell />}>
+          <Route index element={<CalendarPage />} />
+          <Route path="body" element={<PlaceholderPage titleKey="nav_body" />} />
+          <Route path="analytics" element={<PlaceholderPage titleKey="nav_analytics" />} />
+        </Route>
+      </Routes>
+    </HashRouter>
   );
 }

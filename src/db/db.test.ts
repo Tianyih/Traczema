@@ -245,3 +245,83 @@ describe('demo data seeder (separate demo database)', () => {
     expect(svg).toContain('hsl(120 ');
   });
 });
+
+describe('saving a whole day (log + photos, one transaction)', () => {
+  const blob = () => new Blob(['img'], { type: 'image/jpeg' });
+  const ph = (id: string, date: string, regionId: PhotoRecord['regionId'], createdAt: number): PhotoRecord => ({
+    id, date: d(date), regionId, blob: blob(), thumb: blob(), mime: 'image/jpeg', width: 4, height: 4, bytes: 3, tags: [], caption: '', createdAt,
+  });
+
+  it('stores the log and photos; reloading returns both', async () => {
+    const { loadDay, saveDay } = await import('./repos/dayRepo');
+    const db = fresh();
+    const res = await saveDay(db, { log: dailyLog(d('2024-05-01'), { overallSeverity: 5 }), photos: [ph('b', '2024-05-01', null, 2), ph('a', '2024-05-01', null, 1)], removedPhotoIds: [] }, 500);
+    expect(res.logStored).toBe(true);
+    const day = await loadDay(db, d('2024-05-01'));
+    expect(day.log?.overallSeverity).toBe(5);
+    expect(day.log?.updatedAt).toBe(500);
+    expect(day.photos.map((p) => p.id)).toEqual(['a', 'b']);
+  });
+
+  it('keeps createdAt on update, applies removals, and leaves body-part photos for the date alone', async () => {
+    const { loadDay, saveDay } = await import('./repos/dayRepo');
+    const db = fresh();
+    await saveDay(db, { log: dailyLog(d('2024-05-01'), { overallSeverity: 5, createdAt: 7 }), photos: [ph('a', '2024-05-01', null, 1)], removedPhotoIds: [] }, 100);
+    await db.photos.put(ph('neck-1', '2024-05-01', 'neck', 3));
+    const first = await db.dailyLogs.get(d('2024-05-01'));
+    await saveDay(db, { log: { ...first!, overallSeverity: 8 }, photos: [ph('c', '2024-05-01', null, 4)], removedPhotoIds: ['a'] }, 200);
+    const day = await loadDay(db, d('2024-05-01'));
+    expect(day.log).toMatchObject({ overallSeverity: 8, createdAt: 7, updatedAt: 200 });
+    expect(day.photos.map((p) => p.id)).toEqual(['c']);
+    expect((await db.photos.get('neck-1'))?.regionId).toBe('neck'); // untouched
+  });
+
+  it('an empty log is not stored (and removes a previously stored one) but photos still are', async () => {
+    const { loadDay, saveDay } = await import('./repos/dayRepo');
+    const db = fresh();
+    const res = await saveDay(db, { log: dailyLog(d('2024-05-02')), photos: [ph('p', '2024-05-02', null, 1)], removedPhotoIds: [] });
+    expect(res.logStored).toBe(false);
+    expect((await loadDay(db, d('2024-05-02'))).log).toBeNull();
+    expect((await loadDay(db, d('2024-05-02'))).photos).toHaveLength(1);
+
+    await saveDay(db, { log: dailyLog(d('2024-05-03'), { overallSeverity: 4 }), photos: [], removedPhotoIds: [] });
+    await saveDay(db, { log: dailyLog(d('2024-05-03')), photos: [], removedPhotoIds: [] }); // user cleared everything
+    expect(await db.dailyLogs.get(d('2024-05-03'))).toBeUndefined();
+  });
+
+  it('normalises on save: unrecorded sections stay null, "no shower" drops stale details', async () => {
+    const { saveDay } = await import('./repos/dayRepo');
+    const db = fresh();
+    await saveDay(db, {
+      log: dailyLog(d('2024-05-04'), {
+        overallSeverity: 3,
+        weather: { temperatureC: null, humidityPct: null, source: 'manual', fetchedAt: null },
+        shower: { took: false, durationMin: 12, waterTemp: 'hot', cleansing: null, moisturizedWithin3Min: true },
+        clothing: [],
+      }),
+      photos: [], removedPhotoIds: [],
+    });
+    const saved = await db.dailyLogs.get(d('2024-05-04'));
+    expect(saved?.weather).toBeNull();
+    expect(saved?.clothing).toBeNull();
+    expect(saved?.shower).toEqual({ took: false, durationMin: null, waterTemp: null, cleansing: null, moisturizedWithin3Min: null });
+  });
+
+  it('is atomic: an invalid log aborts the whole save, photos included', async () => {
+    const { saveDay } = await import('./repos/dayRepo');
+    const db = fresh();
+    await expect(saveDay(db, { log: dailyLog(d('2024-05-05'), { overallSeverity: 99 }), photos: [ph('x', '2024-05-05', null, 1)], removedPhotoIds: [] })).rejects.toBeInstanceOf(ValidationError);
+    expect(await db.photos.count()).toBe(0);
+    expect(await db.dailyLogs.count()).toBe(0);
+  });
+
+  it('deleteDay removes the log and whole-day photos only', async () => {
+    const { deleteDay, saveDay } = await import('./repos/dayRepo');
+    const db = fresh();
+    await saveDay(db, { log: dailyLog(d('2024-05-06'), { overallSeverity: 2 }), photos: [ph('g', '2024-05-06', null, 1)], removedPhotoIds: [] });
+    await db.photos.put(ph('r', '2024-05-06', 'face', 2));
+    await deleteDay(db, d('2024-05-06'));
+    expect(await db.dailyLogs.get(d('2024-05-06'))).toBeUndefined();
+    expect((await db.photos.toArray()).map((p) => p.id)).toEqual(['r']);
+  });
+});
