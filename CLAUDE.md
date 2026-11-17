@@ -16,3 +16,9 @@
 - Typecheck: `npm run typecheck` (or `tsc --noEmit`)
 - Build check: `npm run build`
 - Unit tests for analytics engine: `npx vitest run`
+
+## Internationalization (Bilingual EN / ZH-CN)
+- Implement a lightweight, strongly-typed i18n system (`src/i18n/en.ts`, `src/i18n/zh.ts`, and a `LanguageContext` with `t(key)` helper) plus a persistent `EN / 中文` toggle button in the top header.
+- Store strictly language-agnostic canonical keys (e.g., `dairy`, `sweat_heavy`, `antecubital_fossa`, `hyperpigmentation`) in IndexedDB and the correlation engine; resolve display labels exclusively at the UI layer via `t()`.
+- Synchronize `date-fns` locales (`enUS` and `zhCN`) with the active language state for calendar headers and date formatting.
+- Ensure `zh.ts` satisfies the exact TypeScript type `typeof en` so `npm run typecheck` enforces 100% translation key parity.
