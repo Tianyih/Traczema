@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { ImagePlus, Loader2, Tag, Trash2 } from 'lucide-react';
+import { BlobImage } from '@/components/common/BlobImage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { PHOTO_TAGS, type PhotoTagRef } from '@/db/types';
@@ -9,16 +10,6 @@ import type { MessageKey } from '@/i18n';
 import { toggleIn } from '@/lib/dailyLogDraft';
 import { Chip, CustomTagAdder, Notice, Section } from '../fields';
 import type { PhotoDraft } from '../types';
-
-function PhotoThumb({ blob, alt }: { blob: Blob; alt: string }) {
-  const [url, setUrl] = useState<string | null>(null);
-  useEffect(() => {
-    const u = URL.createObjectURL(blob);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [blob]);
-  return url ? <img src={url} alt={alt} className="aspect-[4/3] w-full rounded-md object-cover" /> : <div className="aspect-[4/3] w-full rounded-md bg-muted" />;
-}
 
 function PhotoCard({ photo, index, onChange, onRemove }: { photo: PhotoDraft; index: number; onChange: (patch: Partial<PhotoDraft>) => void; onRemove: () => void }) {
   const { t } = useLanguage();
@@ -30,7 +21,7 @@ function PhotoCard({ photo, index, onChange, onRemove }: { photo: PhotoDraft; in
   return (
     <li data-testid="photo-card" className="space-y-2 rounded-lg border p-2">
       <div className="relative">
-        <PhotoThumb blob={photo.thumb} alt={t('photo_alt', { n: index + 1 })} />
+        <BlobImage blob={photo.thumb} alt={t('photo_alt', { n: index + 1 })} className="aspect-[4/3] w-full rounded-md object-cover" />
         <Button variant="secondary" size="iconSm" className="absolute right-1.5 top-1.5 bg-card/90" aria-label={`${t('photo_remove')} ${index + 1}`} onClick={onRemove}>
           <Trash2 />
         </Button>

@@ -8,11 +8,10 @@ import { deleteDay, loadDay, saveDay } from '@/db/repos/dayRepo';
 import type { DailyLog, PhotoRecord } from '@/db/types';
 import { ValidationError } from '@/db/validate';
 import { useDb } from '@/hooks/useDb';
+import { usePhotoDrafts } from '@/hooks/usePhotoDrafts';
 import { useLanguage } from '@/i18n/LanguageContext';
-import type { MessageKey } from '@/i18n';
 import { isLogEmpty, sameLogContent } from '@/lib/dailyLogDraft';
 import { addDaysISO, type ISODate } from '@/lib/date';
-import { ImageError, processImageFile } from '@/lib/images/processImage';
 import { Notice } from './fields';
 import { BeddingSection } from './sections/BeddingSection';
 import { ClothingSection } from './sections/ClothingSection';
@@ -24,10 +23,7 @@ import { SeveritySection } from './sections/SeveritySection';
 import { ShowerSection } from './sections/ShowerSection';
 import { StressSleepSection } from './sections/StressSleepSection';
 import { WeatherSection } from './sections/WeatherSection';
-import type { PhotoDraft, UpdateLog } from './types';
-
-const photoSignature = (photos: readonly Pick<PhotoRecord, 'id' | 'tags' | 'caption'>[]) =>
-  JSON.stringify(photos.map((p) => [p.id, p.tags, p.caption]));
+import type { UpdateLog } from './types';
 
 type Confirm = { kind: 'discard'; then: () => void } | { kind: 'delete' } | null;
 
@@ -49,17 +45,15 @@ function DailyLogForm({ date, today, initialLog, initialPhotos, storedLogs, onCl
 
   const [log, setLog] = useState<DailyLog>(() => initialLog ?? emptyDailyLog(date));
   const baseline = useRef(log).current;
-  const [photos, setPhotos] = useState<PhotoDraft[]>(() => initialPhotos.map((p) => ({ ...p, isNew: false })));
-  const baselinePhotos = useRef(photoSignature(initialPhotos)).current;
+  const pics = usePhotoDrafts({ date, regionId: null, initial: initialPhotos });
+  const photos = pics.photos;
 
-  const [busy, setBusy] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [photoError, setPhotoError] = useState<MessageKey | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<Confirm>(null);
 
   const update: UpdateLog = useCallback((fn) => setLog((l) => fn(l)), []);
-  const dirty = !sameLogContent(log, baseline) || photoSignature(photos) !== baselinePhotos;
+  const dirty = !sameLogContent(log, baseline) || pics.dirty;
   const hasStored = initialLog !== null || initialPhotos.length > 0;
   const nextDay = addDaysISO(date, 1);
 
@@ -71,36 +65,11 @@ function DailyLogForm({ date, today, initialLog, initialPhotos, storedLogs, onCl
     };
   });
 
-  const addFiles = async (files: File[]) => {
-    if (files.length === 0) return;
-    setBusy(true);
-    setPhotoError(null);
-    const added: PhotoDraft[] = [];
-    for (const file of files) {
-      try {
-        const img = await processImageFile(file);
-        added.push({
-          id: crypto.randomUUID(), date, regionId: null, blob: img.blob, thumb: img.thumb, mime: img.mime,
-          width: img.width, height: img.height, bytes: img.bytes, tags: [], caption: '', createdAt: Date.now() + added.length, isNew: true,
-        });
-      } catch (e) {
-        setPhotoError(e instanceof ImageError ? (`photo_err_${e.code}` as MessageKey) : 'photo_err_unsupported');
-      }
-    }
-    setPhotos((p) => [...p, ...added]);
-    setBusy(false);
-  };
-
   const save = async () => {
     setSaving(true);
     setSaveError(null);
     try {
-      const keep = new Set(photos.map((p) => p.id));
-      await saveDay(db, {
-        log,
-        photos: photos.map(({ isNew: _isNew, ...rec }) => rec),
-        removedPhotoIds: initialPhotos.filter((p) => !keep.has(p.id)).map((p) => p.id),
-      });
+      await saveDay(db, { log, photos: pics.toRecords(), removedPhotoIds: pics.removedIds });
       onClose();
     } catch (e) {
       setSaveError(e instanceof ValidationError ? e.message : e instanceof Error ? e.message : String(e));
@@ -141,11 +110,11 @@ function DailyLogForm({ date, today, initialLog, initialPhotos, storedLogs, onCl
       <div className="flex-1 space-y-4 overflow-y-auto bg-muted/40 px-4 py-4" data-testid="log-body">
         <PhotosSection
           photos={photos}
-          busy={busy}
-          errorKey={photoError}
-          onAddFiles={(f) => void addFiles(f)}
-          onChange={(id, patch) => setPhotos((ps) => ps.map((p) => (p.id === id ? { ...p, ...patch } : p)))}
-          onRemove={(id) => setPhotos((ps) => ps.filter((p) => p.id !== id))}
+          busy={pics.busy}
+          errorKey={pics.errorKey}
+          onAddFiles={(f) => void pics.addFiles(f)}
+          onChange={pics.patch}
+          onRemove={pics.remove}
         />
         <NotesSection log={log} update={update} />
         <SeveritySection log={log} update={update} />
@@ -186,7 +155,7 @@ function DailyLogForm({ date, today, initialLog, initialPhotos, storedLogs, onCl
           )}
           <span className="ml-auto text-xs text-muted-foreground" data-testid="log-dirty">{dirty ? t('log_unsaved') : ''}</span>
           <Button variant="outline" onClick={() => guard(onClose)} disabled={saving}>{t('log_cancel')}</Button>
-          <Button data-testid="log-save" onClick={() => void save()} disabled={saving || busy || (!dirty && !hasStored) || (empty && !hasStored)}>
+          <Button data-testid="log-save" onClick={() => void save()} disabled={saving || pics.busy || (!dirty && !hasStored) || (empty && !hasStored)}>
             {saving && <Loader2 className="animate-spin" />} {saving ? t('log_saving') : t('log_save')}
           </Button>
         </div>

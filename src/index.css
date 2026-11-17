@@ -92,3 +92,34 @@
 @keyframes sheet-in-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes sheet-in-bottom { from { transform: translateY(100%); } to { transform: translateY(0); } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ---- body map ---- */
+.body-region {
+  cursor: pointer;
+  outline: none;
+}
+.body-region-shape,
+.body-part-static {
+  stroke: var(--foreground);
+  stroke-opacity: 0.35;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  transition: stroke-width 120ms, stroke-opacity 120ms, filter 120ms;
+}
+.body-part-static {
+  fill: var(--muted);
+}
+.body-region:hover .body-region-shape {
+  stroke-opacity: 0.9;
+  filter: brightness(0.96);
+}
+.body-region:focus-visible .body-region-shape {
+  stroke: var(--ring);
+  stroke-opacity: 1;
+  stroke-width: 3;
+}
+.body-region[aria-pressed='true'] .body-region-shape {
+  stroke: var(--primary);
+  stroke-opacity: 1;
+  stroke-width: 3;
+}

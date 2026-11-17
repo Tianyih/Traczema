@@ -325,3 +325,54 @@ describe('saving a whole day (log + photos, one transaction)', () => {
     expect((await db.photos.toArray()).map((p) => p.id)).toEqual(['r']);
   });
 });
+
+describe('body-part observations (log + photos, one transaction)', () => {
+  const photo = (id: string, date: string, regionId: PhotoRecord['regionId'], createdAt = 1): PhotoRecord => ({
+    id, date: d(date), regionId, blob: new Blob(['x']), thumb: new Blob(['x']), mime: 'image/jpeg', width: 2, height: 2, bytes: 1, tags: [], caption: '', createdAt,
+  });
+  const ids = (() => { let n = 0; return () => `obs-${n++}`; })();
+
+  it('saves the log with its photos, forcing the photos onto the observation\'s region and date', async () => {
+    const { saveObservation, loadObservationPhotos } = await import('./repos/regionRepo');
+    const db = fresh();
+    const row = await saveObservation(db, { log: { regionId: 'neck', date: d('2024-05-01'), status: 'active', severity: 6 }, photos: [photo('a', '1999-01-01', null)], removedPhotoIds: [] }, 10, ids);
+    expect(row).toMatchObject({ regionId: 'neck', date: '2024-05-01', severity: 6, createdAt: 10 });
+    const saved = await loadObservationPhotos(db, 'neck', d('2024-05-01'));
+    expect(saved.map((p) => [p.id, p.regionId, p.date])).toEqual([['a', 'neck', '2024-05-01']]);
+  });
+
+  it('updating keeps id / createdAt, applies photo removals, and leaves other regions\' photos alone', async () => {
+    const { saveObservation, loadObservationPhotos } = await import('./repos/regionRepo');
+    const db = fresh();
+    const first = await saveObservation(db, { log: { regionId: 'neck', date: d('2024-05-01'), status: 'active', severity: 6 }, photos: [photo('a', '2024-05-01', 'neck'), photo('b', '2024-05-01', 'neck', 2)], removedPhotoIds: [] }, 10, ids);
+    await db.photos.put(photo('face-1', '2024-05-01', 'face'));
+    const second = await saveObservation(db, { log: { regionId: 'neck', date: d('2024-05-01'), status: 'healing', severity: 3 }, photos: [photo('b', '2024-05-01', 'neck', 2)], removedPhotoIds: ['a'] }, 20, ids);
+    expect(second).toMatchObject({ id: first.id, createdAt: 10, updatedAt: 20, status: 'healing' });
+    expect((await loadObservationPhotos(db, 'neck', d('2024-05-01'))).map((p) => p.id)).toEqual(['b']);
+    expect((await db.photos.get('face-1'))?.regionId).toBe('face');
+    expect(await db.bodyPartLogs.count()).toBe(1);
+  });
+
+  it('normalises (healed -> severity 0, residual skin only when healing/healed) and is atomic on failure', async () => {
+    const { saveObservation } = await import('./repos/regionRepo');
+    const db = fresh();
+    const healed = await saveObservation(db, { log: { regionId: 'neck', date: d('2024-05-09'), status: 'healed', severity: 7, residualSkin: ['xerosis'] }, photos: [], removedPhotoIds: [] });
+    expect(healed).toMatchObject({ severity: 0, residualSkin: ['xerosis'] });
+    await expect(saveObservation(db, { log: { regionId: 'neck', date: d('2024-05-10'), status: 'active', severity: 0 }, photos: [photo('zz', '2024-05-10', 'neck')], removedPhotoIds: [] })).rejects.toBeInstanceOf(ValidationError);
+    expect(await db.photos.get('zz')).toBeUndefined();
+    expect(await db.bodyPartLogs.count()).toBe(1);
+  });
+
+  it('deleting an observation removes its log and that day\'s photos for the region only', async () => {
+    const { saveObservation, deleteObservation } = await import('./repos/regionRepo');
+    const db = fresh();
+    const a = await saveObservation(db, { log: { regionId: 'neck', date: d('2024-05-01'), status: 'active', severity: 6 }, photos: [photo('n1', '2024-05-01', 'neck')], removedPhotoIds: [] });
+    await saveObservation(db, { log: { regionId: 'neck', date: d('2024-05-02'), status: 'active', severity: 6 }, photos: [photo('n2', '2024-05-02', 'neck')], removedPhotoIds: [] });
+    await db.photos.put(photo('face-1', '2024-05-01', 'face'));
+    await db.photos.put(photo('whole-day', '2024-05-01', null));
+    await deleteObservation(db, a.id);
+    expect((await db.photos.toArray()).map((p) => p.id).sort()).toEqual(['face-1', 'n2', 'whole-day']);
+    expect((await db.bodyPartLogs.toArray()).map((l) => l.date)).toEqual(['2024-05-02']);
+    await expect(deleteObservation(db, 'does-not-exist')).resolves.toBeUndefined();
+  });
+});

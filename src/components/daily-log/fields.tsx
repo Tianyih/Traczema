@@ -49,11 +49,13 @@ export interface SliderFieldProps {
   max: number;
   /** Tint the value chip with the severity heat colour. */
   heat?: boolean;
+  /** Show the clear (×) control. Off for values that must always have a number. */
+  clearable?: boolean;
   testId?: string;
 }
 
 /** A slider that can honestly be "not rated" (null), distinct from 0. */
-export function SliderField({ label, value, onChange, min, max, heat, testId }: SliderFieldProps) {
+export function SliderField({ label, value, onChange, min, max, heat, clearable = true, testId }: SliderFieldProps) {
   const { t } = useLanguage();
   return (
     <div>
@@ -67,7 +69,7 @@ export function SliderField({ label, value, onChange, min, max, heat, testId }: 
           >
             {value === null ? t('sev_not_rated') : value}
           </span>
-          {value !== null && (
+          {value !== null && clearable && (
             <button type="button" onClick={() => onChange(null)} aria-label={`${label}: ${t('log_clear_section')}`} className="rounded p-1 text-muted-foreground hover:bg-muted">
               <X className="size-3.5" />
             </button>
