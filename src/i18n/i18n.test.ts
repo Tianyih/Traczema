@@ -116,6 +116,25 @@ describe('translator', () => {
   });
 });
 
+describe('explorer wording matches the product spec', () => {
+  const E = createTranslator('en');
+  const Z = createTranslator('zh');
+  it('reproduces the spec example: "Present in 75% of Severe Flare days", "22% of all days", "75% / 22% = 3.41x more likely"', () => {
+    expect(E.t('rev_cooccurrence', { pct: '75%', tier: E.t('tier_severe'), both: 6, target: 8 })).toBe('Present in 75% of Severe flare (7–10) days (6 of 8)');
+    expect(E.t('rev_baseline', { pct: '22%', present: 22, total: 100 })).toBe('Present in 22% of all logged days (22 of 100)');
+    expect(E.t('rev_formula', { co: '75%', base: '22%', lift: '3.41' })).toBe('75% / 22% = 3.41×');
+    expect(E.t('rev_lift_text', { lift: '3.41' })).toBe('3.41× more likely');
+  });
+  it('has the Chinese equivalents with every number intact', () => {
+    expect(Z.t('rev_cooccurrence', { pct: '75%', tier: Z.t('tier_severe'), both: 6, target: 8 })).toContain('75%');
+    expect(Z.t('rev_cooccurrence', { pct: '75%', tier: Z.t('tier_severe'), both: 6, target: 8 })).toContain('6/8');
+    expect(Z.t('rev_lift_text', { lift: '3.41' })).toBe('可能性高出 3.41 倍');
+  });
+  it('p-values read naturally with a comparator supplied by the caller', () => {
+    expect(E.t('rev_sig', { p: '< 0.001', q: '= 0.005' })).toBe('p < 0.001 · q = 0.005');
+  });
+});
+
 describe('date-fns locale stays in sync with the language', () => {
   it('formats month headers and full dates per language', () => {
     const E = createTranslator('en');

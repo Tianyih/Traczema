@@ -1,16 +1,13 @@
-import { createPortal } from 'react-dom';
 import { DatabaseZap, Settings, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { useDemoActions } from '@/hooks/useDemoActions';
-import { useDb } from '@/hooks/useDb';
 import { useLanguage } from '@/i18n/LanguageContext';
 
 /** Settings menu: load / clear the 60-day demo dataset (kept in a separate database). */
 export function SettingsMenu() {
   const { t } = useLanguage();
-  const { mode } = useDb();
-  const { load, clear, busy, message } = useDemoActions();
+  const { load, clear, busy } = useDemoActions();
   return (
     <>
       <DropdownMenu>
@@ -31,15 +28,6 @@ export function SettingsMenu() {
           <p className="max-w-64 px-2.5 py-2 text-xs text-muted-foreground">{t('demo_hint')}</p>
         </DropdownMenuContent>
       </DropdownMenu>
-      {/* Portalled to <body>: the header uses backdrop-filter, which would otherwise become the containing
-          block of this `fixed` toast and pin it inside the header instead of the viewport. */}
-      {message &&
-        createPortal(
-          <p role="status" data-testid="demo-message" className="fixed bottom-4 left-1/2 z-[60] -translate-x-1/2 rounded-lg bg-foreground px-4 py-2 text-sm text-background shadow-lg" data-mode={mode}>
-            {message}
-          </p>,
-          document.body,
-        )}
     </>
   );
 }

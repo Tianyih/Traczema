@@ -1,6 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { Activity, CalendarDays, PersonStanding } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { DemoToast } from '@/hooks/useDemoActions';
 import { useDb } from '@/hooks/useDb';
 import { useLanguage } from '@/i18n/LanguageContext';
 import { cn } from '@/lib/utils';
@@ -55,6 +56,7 @@ export function AppShell() {
       <main className="mx-auto max-w-5xl px-4 py-5">
         <Outlet />
       </main>
+      <DemoToast />
     </div>
   );
 }

@@ -123,3 +123,30 @@
   stroke-opacity: 1;
   stroke-width: 3;
 }
+
+/* ---- charts: validated palette tokens (keep in sync with components/analytics/vizTheme.ts) ---- */
+.viz-root {
+  --viz-surface: #fcfcfb;
+  --viz-ink: #0b0b0b;
+  --viz-ink-2: #52514e;
+  --viz-muted: #898781;
+  --viz-grid: #e1e0d9;
+  --viz-axis: #c3c2b7;
+  --viz-neutral: #898781;
+  --viz-severity: #2a78d6;
+  background: var(--viz-surface);
+  color: var(--viz-ink);
+}
+@media (prefers-color-scheme: dark) {
+  .viz-root {
+    --viz-surface: #1a1a19;
+    --viz-ink: #f0efec;
+    --viz-ink-2: #c3c2b7;
+    --viz-grid: #2c2c2a;
+    --viz-axis: #383835;
+    --viz-severity: #3987e5;
+  }
+}
+/* Recharts: hairline solid recessive grid, no focus box around the plot */
+.viz-root .recharts-surface { outline: none; }
+.viz-root .recharts-wrapper { outline: none; }
